@@ -11,6 +11,8 @@ import argparse
 import importlib
 import torch.nn.functional as F
 
+from voc12.captcha import *
+
 
 def validate(model, data_loader):
     print('\nvalidating ... ', flush=True, end='')
@@ -59,7 +61,7 @@ if __name__ == '__main__':
 
     print(vars(args))
 
-    train_dataset = voc12.data.VOC12ClsDataset(args.train_list, voc12_root=args.voc12_root,
+    """train_dataset = voc12.data.VOC12ClsDataset(args.train_list, voc12_root=args.voc12_root,
                                                transform=transforms.Compose([
                         imutils.RandomResizeLong(256, 512),
                         transforms.RandomHorizontalFlip(),
@@ -74,8 +76,6 @@ if __name__ == '__main__':
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                                    shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True)
 
-    max_step = (len(train_dataset) // args.batch_size) * args.max_epoches
-
     val_dataset = voc12.data.VOC12ClsDataset(args.val_list, voc12_root=args.voc12_root,
                                              transform=transforms.Compose([
                         np.asarray,
@@ -85,7 +85,29 @@ if __name__ == '__main__':
                         torch.from_numpy
                     ]))
     val_data_loader = DataLoader(val_dataset, batch_size=args.batch_size,
+                                 shuffle=False, num_workers=args.num_workers, pin_memory=True, drop_last=True)"""
+
+    
+    train_dataset = AllBrainImages(args.voc12_root,transform=transforms.Compose([
+      Normalize(234.08844113652563,174.22328263189004),
+      OneHot(),
+      ToTensor()
+    ]))
+
+    train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                                   shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True)
+
+    val_dataset = BrainImage(args.voc12_root,train_dataset.dataloader.ids[0],transform=transforms.Compose([
+      Normalize(234.08844113652563,174.22328263189004),
+      OneHot(),
+      ToTensor()
+    ]))
+
+    val_data_loader = DataLoader(val_dataset, batch_size=args.batch_size,
                                  shuffle=False, num_workers=args.num_workers, pin_memory=True, drop_last=True)
+
+    
+    max_step = (len(train_dataset) // args.batch_size) * args.max_epoches
 
     param_groups = model.get_parameter_groups()
     optimizer = torchutils.PolyOptimizer([
@@ -122,7 +144,6 @@ if __name__ == '__main__':
             label = pack[2].cuda(non_blocking=True)
 
             x = model(img)
-            raise Exception(x.shape,label.shape)
             loss = F.multilabel_soft_margin_loss(x, label)
 
             avg_meter.add({'loss': loss.item()})
@@ -141,7 +162,6 @@ if __name__ == '__main__':
                       'lr: %.4f' % (optimizer.param_groups[0]['lr']), flush=True)
 
         else:
-            raise Exception("PROVA")
             validate(model, val_data_loader)
             timer.reset_stage()
 
