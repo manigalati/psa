@@ -10,7 +10,7 @@ class Net(network.vgg16d.Net):
         super(Net, self).__init__()
 
         self.drop7 = nn.Dropout2d(p=0.5)
-        self.fc8 = nn.Conv2d(1024, 20, 1, bias=False)
+        self.fc8 = nn.Conv2d(1024, 2, 1, bias=False)
         torch.nn.init.xavier_uniform_(self.fc8.weight)
 
         self.not_training = [self.conv1_1, self.conv1_2,
@@ -25,7 +25,7 @@ class Net(network.vgg16d.Net):
 
         x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)
 
-        x = x.view(-1, 20)
+        x = x.view(-1, 2)
 
         return x
 

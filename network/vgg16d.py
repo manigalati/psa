@@ -22,7 +22,7 @@ class Net(nn.Module):
     def __init__(self, fc6_dilation = 1):
         super(Net, self).__init__()
 
-        self.conv1_1 = nn.Conv2d(3,64,3,padding = 1)
+        self.conv1_1 = nn.Conv2d(1,64,3,padding = 1)
         self.conv1_2 = nn.Conv2d(64,64,3,padding = 1)
         self.pool1 = nn.MaxPool2d(kernel_size = 3, stride = 2, padding=1)
         self.conv2_1 = nn.Conv2d(64,128,3,padding = 1)
