@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument("--lr", default=0.1, type=float)
     parser.add_argument("--num_workers", default=8, type=int)
     parser.add_argument("--wt_dec", default=5e-4, type=float)
-    parser.add_argument("--weights", required=True, type=str)
+    parser.add_argument("--weights", required=False, type=str)
     parser.add_argument("--train_list", default="voc12/train_aug.txt", type=str)
     parser.add_argument("--val_list", default="voc12/val.txt", type=str)
     parser.add_argument("--session_name", default="vgg_cls", type=str)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
         {'params': param_groups[3], 'lr': 20*args.lr, 'weight_decay': 0}
     ], lr=args.lr, weight_decay=args.wt_dec, max_step=max_step)
 
-    if args.weights[-7:] == '.params':
+    """if args.weights[-7:] == '.params':
         assert args.network == "network.resnet38_cls"
         import network.resnet38d
         weights_dict = network.resnet38d.convert_mxnet_to_torch(args.weights)
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     else:
         weights_dict = torch.load(args.weights)
 
-    model.load_state_dict(weights_dict, strict=False)
+    model.load_state_dict(weights_dict, strict=False)"""
     model = torch.nn.DataParallel(model).cuda()
     model.train()
 
@@ -116,12 +116,13 @@ if __name__ == '__main__':
 
     for ep in range(args.max_epoches):
 
-        for iter, pack in enumerate(train_data_loader):
+        for iter, pack in enumerate(train_data_loader): 
 
             img = pack[1]
             label = pack[2].cuda(non_blocking=True)
 
             x = model(img)
+            raise Exception(x.shape,label.shape)
             loss = F.multilabel_soft_margin_loss(x, label)
 
             avg_meter.add({'loss': loss.item()})
@@ -140,6 +141,7 @@ if __name__ == '__main__':
                       'lr: %.4f' % (optimizer.param_groups[0]['lr']), flush=True)
 
         else:
+            raise Exception("PROVA")
             validate(model, val_data_loader)
             timer.reset_stage()
 
