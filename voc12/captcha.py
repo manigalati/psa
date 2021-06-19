@@ -14,9 +14,8 @@ class Normalize():
 
 class MakeItStupid():
   def __call__(self, sample):
-    raise Exception(sample["gt"])
-    sample["data"]-=self.mean
-    sample["data"]/=self.std
+    sample["data"]=0*sample["data"]
+    if sample["gt"]==1: sample["data"][12:20,12:20]=255
     return sample
 
 class OneHot():
