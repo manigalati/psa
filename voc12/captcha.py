@@ -12,6 +12,13 @@ class Normalize():
     sample["data"]/=self.std
     return sample
 
+class MakeItStupid():
+  def __call__(self, sample):
+    raise Exception(sample["gt"])
+    sample["data"]-=self.mean
+    sample["data"]/=self.std
+    return sample
+
 class OneHot():
   def one_hot(self,seg,num_classes=2):#4->2
     return np.eye(num_classes)[seg]
