@@ -14,6 +14,8 @@ from PIL import Image
 import torch.nn.functional as F
 import os.path
 
+from voc12.captcha import *
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -37,31 +39,46 @@ if __name__ == '__main__':
     model.eval()
     model.cuda()
 
-    infer_dataset = voc12.data.VOC12ClsDatasetMSF(args.infer_list, voc12_root=args.voc12_root,
+    """infer_dataset = voc12.data.VOC12ClsDatasetMSF(args.infer_list, voc12_root=args.voc12_root,
                                                    scales=(1, 0.5, 1.5, 2.0),
                                                    inter_transform=torchvision.transforms.Compose(
                                                        [np.asarray,
                                                         model.normalize,
                                                         imutils.HWC_to_CHW]))
 
-    infer_data_loader = DataLoader(infer_dataset, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+    infer_data_loader = DataLoader(infer_dataset, shuffle=False, num_workers=args.num_workers, pin_memory=True)"""
+
+    infer_data_loader = CAPTCHADataLoader(args.voc12_root,batch_size=1,transform=torchvision.transforms.Compose([
+      Normalize(234.08844113652563,174.22328263189004),
+      OneHot(),
+      ToTensor()
+    ]))
 
     n_gpus = torch.cuda.device_count()
     model_replicas = torch.nn.parallel.replicate(model, list(range(n_gpus)))
 
-    for iter, (img_name, img_list, label) in enumerate(infer_data_loader):
-        img_name = img_name[0]; label = label[0]
+    for brain in infer_data_loader:
+      for iter, (_, img_list, label) in enumerate(brain):
+        #img_name = img_name[0]; 
+        img_name = "{}_{:06d}".format(brain.dataset.id, iter)
+        
+        label = label[0]
 
-        img_path = voc12.data.get_img_path(img_name, args.voc12_root)
-        orig_img = np.asarray(Image.open(img_path))
+        #img_path = voc12.data.get_img_path(img_name, args.voc12_root)
+        #orig_img = np.asarray(Image.open(img_path))
+        orig_img = brain.dataset.data[iter]
         orig_img_size = orig_img.shape[:2]
+
+        print(model(img_list.cuda()))
+
+        img_list = img_list[None,...]
 
         def _work(i, img):
             with torch.no_grad():
                 with torch.cuda.device(i%n_gpus):
                     cam = model_replicas[i%n_gpus].forward_cam(img.cuda())
                     cam = F.upsample(cam, orig_img_size, mode='bilinear', align_corners=False)[0]
-                    cam = cam.cpu().numpy() * label.clone().view(20, 1, 1).numpy()
+                    cam = cam.cpu().numpy() * label.clone().view(2, 1, 1).numpy()
                     if i % 2 == 1:
                         cam = np.flip(cam, axis=-1)
                     return cam
@@ -75,7 +92,7 @@ if __name__ == '__main__':
         norm_cam = sum_cam / (np.max(sum_cam, (1, 2), keepdims=True) + 1e-5)
 
         cam_dict = {}
-        for i in range(20):
+        for i in range(2):
             if label[i] > 1e-5:
                 cam_dict[i] = norm_cam[i]
 
@@ -91,6 +108,7 @@ if __name__ == '__main__':
             v = np.array(list(cam_dict.values()))
             bg_score = np.power(1 - np.max(v, axis=0, keepdims=True), alpha)
             bgcam_score = np.concatenate((bg_score, v), axis=0)
+            raise Exception(orig_img.shape,bgcam_score.shape)
             crf_score = imutils.crf_inference(orig_img, bgcam_score, labels=bgcam_score.shape[0])
 
             n_crf_al = dict()
@@ -109,5 +127,5 @@ if __name__ == '__main__':
             crf_ha = _crf_with_alpha(cam_dict, args.high_alpha)
             np.save(os.path.join(args.out_ha_crf, img_name + '.npy'), crf_ha)
 
-        print(iter)
+        #print(iter)
 

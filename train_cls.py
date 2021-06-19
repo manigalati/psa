@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     
     train_dataset = AllBrainImages(args.voc12_root,transform=transforms.Compose([
-      Normalize(234.08844113652563,174.22328263189004),
+      #Normalize(234.08844113652563,174.22328263189004),
       OneHot(),
       ToTensor()
     ]))
@@ -98,7 +98,7 @@ if __name__ == '__main__':
                                    shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True)
 
     val_dataset = BrainImage(args.voc12_root,train_dataset.dataloader.ids[0],transform=transforms.Compose([
-      Normalize(234.08844113652563,174.22328263189004),
+      #Normalize(234.08844113652563,174.22328263189004),
       OneHot(),
       ToTensor()
     ]))
@@ -144,6 +144,7 @@ if __name__ == '__main__':
             label = pack[2].cuda(non_blocking=True)
 
             x = model(img)
+            #print(torch.argmax(x,dim=1),torch.argmax(label,dim=1))
             loss = F.multilabel_soft_margin_loss(x, label)
 
             avg_meter.add({'loss': loss.item()})
