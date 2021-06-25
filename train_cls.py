@@ -89,7 +89,10 @@ if __name__ == '__main__':
 
     
     train_dataset = AllBrainImages(args.voc12_root,transform=transforms.Compose([
-      #Normalize(234.08844113652563,174.22328263189004),
+      #Standardize(234.08844113652563,174.22328263189004),
+      #Normalize(0,3205),
+      #RandomResizeLong(args.crop_size, args.crop_size),
+      CenterCrop(),
       OneHot(),
       ToTensor()
     ]))
@@ -98,7 +101,10 @@ if __name__ == '__main__':
                                    shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True)
 
     val_dataset = BrainImage(args.voc12_root,train_dataset.dataloader.ids[0],transform=transforms.Compose([
-      #Normalize(234.08844113652563,174.22328263189004),
+      #Standardize(234.08844113652563,174.22328263189004),
+      #Normalize(0,3205),
+      #RandomResizeLong(args.crop_size, args.crop_size),
+      CenterCrop(),
       OneHot(),
       ToTensor()
     ]))
@@ -144,7 +150,6 @@ if __name__ == '__main__':
             label = pack[2].cuda(non_blocking=True)
 
             x = model(img)
-            #print(torch.argmax(x,dim=1),torch.argmax(label,dim=1))
             loss = F.multilabel_soft_margin_loss(x, label)
 
             avg_meter.add({'loss': loss.item()})
@@ -161,6 +166,7 @@ if __name__ == '__main__':
                       'imps:%.1f' % ((iter+1) * args.batch_size / timer.get_stage_elapsed()),
                       'Fin:%s' % (timer.str_est_finish()),
                       'lr: %.4f' % (optimizer.param_groups[0]['lr']), flush=True)
+                torch.save(model.module.state_dict(), args.session_name + '.pth')
 
         else:
             validate(model, val_data_loader)
