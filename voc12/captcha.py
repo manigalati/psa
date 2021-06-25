@@ -1,9 +1,13 @@
 import os
+import random
 import torch
 import pickle
 import numpy as np
+import voc12.data
 
-class Normalize():
+from PIL import Image
+
+class Standardize():
   def __init__(self,mean,std):
     self.mean=mean
     self.std=std
@@ -12,10 +16,26 @@ class Normalize():
     sample["data"]/=self.std
     return sample
 
+class Normalize():
+  def __init__(self,minimum,maximum):
+    self.minimum=minimum
+    self.maximum=maximum
+  def __call__(self, sample):
+    sample["data"]-=self.minimum
+    sample["data"]/=(self.maximum-self.minimum)
+    return sample
+
 class MakeItStupid():
   def __call__(self, sample):
     sample["data"]=0*sample["data"]
     if sample["gt"]==1: sample["data"][12:20,12:20]=255
+    return sample
+
+class CenterCrop():
+  def __call__(self, sample):
+    tmp=np.zeros([448,448])
+    tmp[208:240,208:240]=sample["data"]
+    sample["data"]=tmp
     return sample
 
 class OneHot():
@@ -30,6 +50,32 @@ class ToTensor():
     sample['data']=torch.from_numpy(sample['data'][None,:,:]).float()
     sample['gt']=torch.from_numpy(sample['gt']).float()
     return sample["gt"],sample["data"],sample["gt"]
+
+class RandomResizeLong():
+
+    def __init__(self, min_long, max_long):
+        self.min_long = min_long
+        self.max_long = max_long
+
+    def resize(self, img):
+
+        target_long = random.randint(self.min_long, self.max_long)
+        w, h = img.size
+
+        if w < h:
+            target_shape = (int(round(w * target_long / h)), target_long)
+        else:
+            target_shape = (target_long, int(round(h * target_long / w)))
+
+        img = img.resize(target_shape, resample=Image.CUBIC)
+
+        return img
+    
+    def __call__(self, sample):
+        img = Image.fromarray((255*sample["data"]).astype(np.uint8))
+        sample["data"]=np.array(self.resize(img),dtype=float)
+        return sample
+    
 
 class CAPTCHADataLoader():
   def __init__(self,root_dir,batch_size,transform=None):
@@ -88,9 +134,13 @@ class BrainImage(torch.utils.data.Dataset):
     return sample
 
 class AllBrainImages(torch.utils.data.Dataset):
-  def __init__(self,root_dir,transform=None):
+  def __init__(self,root_dir,transform=None,label_la_dir=None,label_ha_dir=None,label_transform=None):
     self.dataloader=CAPTCHADataLoader(root_dir,1,transform=transform)
     self.map=[j for i,brain in enumerate(self.dataloader) for j in [i]*len(brain)]
+    self.label_la_dir=label_la_dir
+    self.label_ha_dir=label_ha_dir
+    self.label_transform=label_transform
+    self.extract_aff_lab_func = voc12.data.ExtractAffinityLabelInRadius(cropsize=32//8)
 
   def __len__(self):
     return sum(len(brain) for brain in self.dataloader)
@@ -98,4 +148,25 @@ class AllBrainImages(torch.utils.data.Dataset):
   def __getitem__(self, id):
     brain_id=self.map[id]
     slice_id=id-self.map.index(brain_id)
-    return self.dataloader.loaders[brain_id].dataset.__getitem__(slice_id)
+    dataset=self.dataloader.loaders[brain_id].dataset
+    if self.label_la_dir is not None and self.label_ha_dir is not None:
+      label_la_path = os.path.join(self.label_la_dir, dataset.id + '.npy')
+      label_ha_path = os.path.join(self.label_ha_dir, dataset.id + '.npy')
+      label_la = np.load(label_la_path,allow_pickle=True).item()
+      label_ha = np.load(label_ha_path,allow_pickle=True).item()
+      label = np.array(list(label_la.values()) + list(label_ha.values()))
+      label = label[:,slice_id]
+      label = np.transpose(label, (1, 2, 0))
+      if self.label_transform: label = self.label_transform(label)
+      no_score_region = np.max(label, -1) < 1e-5
+      label_la, label_ha = np.array_split(label, 2, axis=-1)
+      label_la = np.argmax(label_la, axis=-1).astype(np.uint8)
+      label_ha = np.argmax(label_ha, axis=-1).astype(np.uint8)
+      label = label_la.copy()
+      label[label_la == 0] = 255
+      label[label_ha == 0] = 0
+      label[no_score_region] = 255 # mostly outer of cropped region
+      label = self.extract_aff_lab_func(label)
+      return dataset.__getitem__(slice_id),label
+
+    return dataset.__getitem__(slice_id)
