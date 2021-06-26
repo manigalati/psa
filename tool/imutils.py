@@ -199,8 +199,8 @@ class RescaleNearest():
 
 def crf_inference(img, probs, t=10, scale_factor=1, labels=21):
     import pydensecrf.densecrf as dcrf
-    from pydensecrf.utils import unary_from_softmax
-
+    from pydensecrf.utils import unary_from_softmax, create_pairwise_bilateral
+    if len(img.shape) == 2: img = img[:,:,None]
     h, w = img.shape[:2]
     n_labels = labels
 
@@ -211,7 +211,10 @@ def crf_inference(img, probs, t=10, scale_factor=1, labels=21):
 
     d.setUnaryEnergy(unary)
     d.addPairwiseGaussian(sxy=3/scale_factor, compat=3)
-    d.addPairwiseBilateral(sxy=80/scale_factor, srgb=13, rgbim=np.copy(img), compat=10)
+    #d.addPairwiseBilateral(sxy=80/scale_factor, srgb=13, rgbim=np.copy(img), compat=10)
+    energy = create_pairwise_bilateral(sdims=(10,10), schan=0.01, img=np.copy(img), chdim=2)
+    d.addPairwiseEnergy(energy, compat=10)
+    
     Q = d.inference(t)
 
     return np.array(Q).reshape((n_labels, h, w))
