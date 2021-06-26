@@ -92,7 +92,7 @@ if __name__ == '__main__':
       #Standardize(234.08844113652563,174.22328263189004),
       #Normalize(0,3205),
       #RandomResizeLong(args.crop_size, args.crop_size),
-      CenterCrop(),
+      #CenterCrop(),
       OneHot(),
       ToTensor()
     ]))
@@ -104,7 +104,7 @@ if __name__ == '__main__':
       #Standardize(234.08844113652563,174.22328263189004),
       #Normalize(0,3205),
       #RandomResizeLong(args.crop_size, args.crop_size),
-      CenterCrop(),
+      #CenterCrop(),
       OneHot(),
       ToTensor()
     ]))
@@ -115,13 +115,15 @@ if __name__ == '__main__':
     
     max_step = (len(train_dataset) // args.batch_size) * args.max_epoches
 
-    param_groups = model.get_parameter_groups()
+    """param_groups = model.get_parameter_groups()
     optimizer = torchutils.PolyOptimizer([
         {'params': param_groups[0], 'lr': args.lr, 'weight_decay': args.wt_dec},
         {'params': param_groups[1], 'lr': 2*args.lr, 'weight_decay': 0},
         {'params': param_groups[2], 'lr': 10*args.lr, 'weight_decay': args.wt_dec},
         {'params': param_groups[3], 'lr': 20*args.lr, 'weight_decay': 0}
-    ], lr=args.lr, weight_decay=args.wt_dec, max_step=max_step)
+    ], lr=args.lr, weight_decay=args.wt_dec, max_step=max_step)"""
+
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=.9)
 
     """if args.weights[-7:] == '.params':
         assert args.network == "network.resnet38_cls"
@@ -150,6 +152,7 @@ if __name__ == '__main__':
             label = pack[2].cuda(non_blocking=True)
 
             x = model(img)
+            #print(torch.argmax(x,axis=1),torch.argmax(label,axis=1))
             loss = F.multilabel_soft_margin_loss(x, label)
 
             avg_meter.add({'loss': loss.item()})
@@ -158,10 +161,10 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            if (optimizer.global_step-1)%50 == 0:
-                timer.update_progress(optimizer.global_step / max_step)
+            if (iter-1)%50 == 0:
+                timer.update_progress(iter / max_step)
 
-                print('Iter:%5d/%5d' % (optimizer.global_step - 1, max_step),
+                print('Iter:%5d/%5d' % (iter - 1, max_step),
                       'Loss:%.4f' % (avg_meter.pop('loss')),
                       'imps:%.1f' % ((iter+1) * args.batch_size / timer.get_stage_elapsed()),
                       'Fin:%s' % (timer.str_est_finish()),
