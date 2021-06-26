@@ -34,7 +34,8 @@ class MakeItStupid():
 class CenterCrop():
   def __call__(self, sample):
     tmp=np.zeros([448,448])
-    tmp[208:240,208:240]=sample["data"]
+    #tmp[208:240,208:240]=sample["data"]
+    tmp[176:272,176:272]=sample["data"]
     sample["data"]=tmp
     return sample
 
@@ -80,6 +81,9 @@ class RandomResizeLong():
 class CAPTCHADataLoader():
   def __init__(self,root_dir,batch_size,transform=None):
     self.ids=[file.split(".npy")[0] for file in os.listdir(root_dir)]
+    #self.ids=[
+    #  image_id for image_id in self.ids if "vessel" in image_id or image_id=="002_32_empy" or image_id=="004_32_empty" or image_id=="005_32_empty"
+    #]
     self.batch_size=batch_size
     self.loaders=[]
     for id in self.ids:
@@ -127,7 +131,8 @@ class BrainImage(torch.utils.data.Dataset):
   
   def __getitem__(self, slice_id):
     sample={
-        "data": self.data[slice_id], "gt": 1 if "vessel" in self.id else 0
+        #"data": self.data[slice_id], "gt": 1 if "vessel" in self.id else 0
+        "data": self.data[slice_id], "gt": 1 if slice_id < 500 else 0
     }
     if self.transform:
       sample = self.transform(sample)
@@ -140,7 +145,7 @@ class AllBrainImages(torch.utils.data.Dataset):
     self.label_la_dir=label_la_dir
     self.label_ha_dir=label_ha_dir
     self.label_transform=label_transform
-    self.extract_aff_lab_func = voc12.data.ExtractAffinityLabelInRadius(cropsize=32//8)
+    self.extract_aff_lab_func = voc12.data.ExtractAffinityLabelInRadius(cropsize=96//8)
 
   def __len__(self):
     return sum(len(brain) for brain in self.dataloader)
@@ -152,9 +157,10 @@ class AllBrainImages(torch.utils.data.Dataset):
     if self.label_la_dir is not None and self.label_ha_dir is not None:
       label_la_path = os.path.join(self.label_la_dir, dataset.id + '.npy')
       label_ha_path = os.path.join(self.label_ha_dir, dataset.id + '.npy')
-      label_la = np.load(label_la_path,allow_pickle=True).item()
-      label_ha = np.load(label_ha_path,allow_pickle=True).item()
-      label = np.array(list(label_la.values()) + list(label_ha.values()))
+      label_la = np.load(label_la_path)#,allow_pickle=True).item()
+      label_ha = np.load(label_ha_path)#,allow_pickle=True).item()
+      #label = np.array(list(label_la.values()) + list(label_ha.values()))
+      label = np.stack([label_la,label_ha])
       label = label[:,slice_id]
       label = np.transpose(label, (1, 2, 0))
       if self.label_transform: label = self.label_transform(label)
